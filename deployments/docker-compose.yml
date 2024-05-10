@@ -1,0 +1,46 @@
+version: '3'
+
+services:
+  postgres:
+    image: postgres:latest
+    container_name: postgres
+    networks:
+      postgres:
+        aliases:
+          - database
+    restart: always
+    environment:
+      - POSTGRES_PASSWORD=root
+      - POSTGRES_USER=root
+      - POSTGRES_DB=telegram
+    volumes:
+      - ../data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U root -d telegram"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  telegram-bot:
+    image: telegram-bot:latest
+    networks:
+      - postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  migrate:
+    image: migrate/migrate
+    networks:
+      postgres:
+    volumes:
+      - ../migrations:/migrations
+    command: ["-path", "/migrations", "-database", "postgres://root:root@database:5432/telegram?sslmode=disable", "up", "1"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+
+networks:
+  postgres:
+
