@@ -25,6 +25,7 @@ services:
     image: telegram-bot:latest
     networks:
       - postgres
+      - mongo
     depends_on:
       postgres:
         condition: service_healthy
@@ -40,7 +41,19 @@ services:
       postgres:
         condition: service_healthy
 
+  mongo:
+    image: mongo
+    container_name: mongo
+    restart: always
+    networks:
+      mongo:
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: root
+
+
 
 networks:
   postgres:
+  mongo:
 

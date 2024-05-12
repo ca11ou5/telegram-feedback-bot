@@ -16,29 +16,45 @@ func NewHandler(svc *service.Service) *Handler {
 
 func (h *Handler) CheckUpdates(bot *tgbotapi.BotAPI, updates tgbotapi.UpdatesChannel) {
 	for update := range updates {
-
 		if update.Message != nil {
 			if update.Message.IsCommand() {
 				var msg tgbotapi.MessageConfig
-				if update.Message == nil {
-					msg = tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, "")
-				} else {
-					msg = tgbotapi.NewMessage(update.Message.Chat.ID, "")
-				}
+				msg = tgbotapi.NewMessage(update.Message.Chat.ID, "")
 				switch update.Message.Command() {
 				case "start":
-					msg.Text = "Заглушка старт"
+					msg.Text = "Привет, я бот обратной связи\n" +
+						"Напиши свой вопрос и я постараюсь на него ответить\n\n" +
+						"Если ты являешься сотрудником для начала авторизируйся через /login"
+					bot.Send(msg)
+					continue
 				case "login":
-					msg.Text = "Заглушка логин"
+					msg.Text = "Введите ваш логин и пароль в формате:\n exampleLogin examplePassword"
+					bot.Send(msg)
+					continue
+				case "next":
+					b := h.svc.CheckPermissions(update.Message.Chat.ID)
+					if b {
+						h.svc.PrintQuestionToSupport(bot, msg)
+						continue
+					}
+					msg.Text = "Вы не авторизованы, пожалуйста авторизуйтесь через /login"
+					bot.Send(msg)
+					continue
 				default:
-					msg.Text = "ГОВНО"
+					msg.Text = "Пока что я не знаю такой команды =("
+					bot.Send(msg)
+					continue
 				}
-				bot.Send(msg)
 			}
 		}
 
 		if update.Message != nil {
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
+
+			b := h.svc.CheckPermissions(update.Message.Chat.ID)
+			if b {
+
+			}
 
 			answers := h.svc.GetAnswers(update.Message.Text)
 			if len(answers) > 0 {
@@ -53,21 +69,28 @@ func (h *Handler) CheckUpdates(bot *tgbotapi.BotAPI, updates tgbotapi.UpdatesCha
 				bot.Send(msg)
 			}
 
-			msg.Text = "Возможные ответы на поставленный вопрос не найдены, задать вопрос эксперту?"
-			keyboard := tgbotapi.NewInlineKeyboardMarkup(
-				tgbotapi.NewInlineKeyboardRow(
-					tgbotapi.NewInlineKeyboardButtonData("Да", "Вопрос отправлен, ожидайте ответа"),
-				),
-				tgbotapi.NewInlineKeyboardRow(
-					tgbotapi.NewInlineKeyboardButtonData("Нет", "Сожалеем, что не смогли вам помочь"),
-				),
-			)
-			msg.ReplyMarkup = keyboard
-			bot.Send(msg)
+			if len(answers) == 0 {
+				msg.ReplyToMessageID = update.Message.MessageID
+				msg.Text = "Возможные ответы на поставленный вопрос не найдены, задать вопрос эксперту?"
+				keyboard := tgbotapi.NewInlineKeyboardMarkup(
+					tgbotapi.NewInlineKeyboardRow(
+						tgbotapi.NewInlineKeyboardButtonData("Да", "Вопрос отправлен, ожидайте ответа"),
+					),
+					tgbotapi.NewInlineKeyboardRow(
+						tgbotapi.NewInlineKeyboardButtonData("Нет", "Сожалеем, что не смогли вам помочь"),
+					),
+				)
+				msg.ReplyMarkup = keyboard
+				bot.Send(msg)
+			}
 		}
 
 		if update.CallbackQuery != nil {
 			callback := update.CallbackQuery
+			if callback.Data == "Вопрос отправлен, ожидайте ответа" {
+				h.svc.InsertQuestion(update.CallbackQuery.Message.ReplyToMessage.Text)
+			}
+
 			if callback.Data == "Вопрос отправлен, ожидайте ответа" || callback.Data == "Сожалеем, что не смогли вам помочь" {
 				edit := tgbotapi.NewEditMessageReplyMarkup(update.CallbackQuery.Message.Chat.ID, update.CallbackQuery.Message.MessageID, tgbotapi.InlineKeyboardMarkup{InlineKeyboard: make([][]tgbotapi.InlineKeyboardButton, 0)})
 				_, err := bot.Send(edit)
@@ -77,14 +100,13 @@ func (h *Handler) CheckUpdates(bot *tgbotapi.BotAPI, updates tgbotapi.UpdatesCha
 				msg := tgbotapi.NewMessage(callback.Message.Chat.ID, "")
 				msg.Text = callback.Data
 				bot.Send(msg)
+				continue
 			}
-		}
 
-		//if update.CallbackQuery != nil {
-		//	msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, "")
-		//	msg.Text = update.CallbackQuery.Data
-		//	bot.Send(msg)
-		//}
+			msg := tgbotapi.NewMessage(callback.Message.Chat.ID, "")
+			msg.Text = update.CallbackQuery.Data
+			bot.Send(msg)
+		}
 
 	}
 }

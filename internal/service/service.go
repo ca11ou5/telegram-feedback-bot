@@ -1,6 +1,8 @@
 package service
 
 import (
+	"feedback-bot/internal/entity"
+	"log"
 	"strings"
 	"time"
 )
@@ -15,6 +17,8 @@ func NewService(repo Repository) *Service {
 
 type Repository interface {
 	CreateUser() error
+	GetQuestion() (*entity.Question, error)
+	InsertQuestion(question *entity.Question) error
 }
 
 func (s *Service) Login() {
@@ -47,4 +51,13 @@ func (s *Service) GetAnswers(questionText string) []map[string]string {
 	return answers
 }
 
-func (s *Service) FindInAQ() {}
+func (s *Service) InsertQuestion(questionText string) {
+	question := &entity.Question{
+		Message: questionText,
+	}
+
+	err := s.repo.InsertQuestion(question)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
